@@ -161,7 +161,7 @@ func (gp *GenericPool) getDeployAnnotations() map[string]string {
 }
 
 // choosePod picks a ready pod from the pool and relabels it, waiting if necessary.
-// returns the pod API object.
+// returns the key and pod API object.
 func (gp *GenericPool) choosePod(newLabels map[string]string) (string, *apiv1.Pod, error) {
 	startTime := time.Now()
 	for {
@@ -181,23 +181,23 @@ func (gp *GenericPool) choosePod(newLabels map[string]string) (string, *apiv1.Po
 				return "", nil, errors.New("readypod controller is not running")
 			}
 			defer gp.readyPodQueue.Done(key)
+
 			key := item.(string)
 			obj, exists, err := gp.readyPodIndexer.GetByKey(key)
 			if err != nil {
-				gp.logger.Info(fmt.Sprintf("fetching object with key %s from store failed with %v", key, err))
+				gp.logger.Error("fetching object from store failed", zap.String("key", key), zap.Error(err))
 				return "", nil, err
 			}
 
 			if !exists {
-				gp.logger.Info("pod deleted", zap.String("pod", key))
+				gp.logger.Warn("pod deleted from store", zap.String("pod", key))
 				continue
 			}
 
-			if utils.IsReadyPod(obj.(*apiv1.Pod)) {
-				chosenPod = obj.(*apiv1.Pod).DeepCopy()
-			} else {
+			if !utils.IsReadyPod(obj.(*apiv1.Pod)) {
 				continue
 			}
+			chosenPod = obj.(*apiv1.Pod).DeepCopy()
 		}
 
 		if gp.env.Spec.AllowedFunctionsPerContainer != fv1.AllowedFunctionsPerContainerInfinite {

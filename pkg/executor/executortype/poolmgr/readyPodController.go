@@ -1,6 +1,7 @@
 package poolmgr
 
 import (
+	"go.uber.org/zap"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -23,6 +24,7 @@ func (gp *GenericPool) startReadyPodController() {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
 			if err == nil {
 				gp.readyPodQueue.Add(key)
+				gp.logger.Debug("add func called", zap.String("key", key))
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -30,8 +32,10 @@ func (gp *GenericPool) startReadyPodController() {
 			if err == nil {
 				gp.readyPodQueue.Forget(key)
 				gp.readyPodQueue.Done(key)
+				gp.logger.Debug("delete func called", zap.String("key", key))
 			}
 		},
 	}, cache.Indexers{})
 	go gp.readyPodController.Run(gp.stopReadyPodControllerCh)
+	gp.logger.Info("readyPod controller started", zap.String("env", gp.env.ObjectMeta.Name), zap.String("envID", string(gp.env.ObjectMeta.UID)))
 }
